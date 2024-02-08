@@ -8,7 +8,6 @@ import sys           # Sys for system-specific parameters and functions
 import serial        # Serial for serial communication
 import threading
 import csv
-import winsound
 import random
 import os
 from pygame import mixer
@@ -77,11 +76,6 @@ def get_date():
 	t = time.gmtime()
 	s = str(t.tm_year) + '/' + str(t.tm_mon) + '/' + str(t.tm_mday)
 	return s
-
-# Play stimulus 
-def play_mixer(file_path):
-    mixer.music.load(file_path)
-    mixer.music.play()
 
 ####################
 # Create log file #
@@ -164,7 +158,8 @@ def read_data():
 def play_stimulus():
     
     # Global variables used within the function
-    global data_exitFlag, song_exitFlag, stimulus, songCount
+    global data_exitFlag, song_exitFlag, stimulus, songCount, playedSongs
+    playedSongs = set()
 
     while not data_exitFlag:
 
@@ -180,19 +175,28 @@ def play_stimulus():
 
                 # Stop playing sounds when sound_exit_flag is True
                 if song_exitFlag:
+                    if mixer.music.get_busy():
+                        mixer.music.fadeout(50)
                     break
 
                 # Play stimulus
-                print(song) # Print song played on screen
-                mixer.music.load(os.path.join(stimA_folderPath, song)) # Set song path
-                mixer.music.play() # Play song
-                songList.append(song.strip()) # Append song to songs_list
-                songCount += 1 # Update how many sounds have been played
+                if song not in playedSongs: # Check if the song has already been played
+                    print(song) # Print song played on screen
+                    mixer.music.load(os.path.join(stimA_folderPath, song)) # Set song path
+                    mixer.music.play() # Play song
+                    songList.append(song.strip()) # Append song to songs_list
+                    songCount += 1 # Update how many sounds have been played
+                    playedSongs.add(song)  # Add the song to the set of played songs
 
+                    # Wait for the current song to finish before trying to play the next one
+                    while mixer.music.get_busy():
+                        time.sleep(0.1)
+                    
                 # Shuffling sounds if all sounds have been played and sound_exit_flag is False
                 if songCount == stim_no:
                     random.shuffle(stimA_files)
                     songCount = 0  # Reset counter
+                    playedSongs.clear()  # Clear the set for the next iteration
 
 # Read data from arduino thread
 data_thread = threading.Thread(target = read_data)
@@ -217,6 +221,7 @@ with open(logFile, 'a', encoding='UTF8', newline='') as f:
     # Read input from arduino
     try:
             ser.timeout = 0.25
+            time.sleep(0.5)
 
             while not data_exitFlag:
 
