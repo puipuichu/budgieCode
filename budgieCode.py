@@ -235,38 +235,38 @@ with open(logFile, "a", encoding = "UTF8", newline = "") as f:
 
                 # Print input from arduino: silent, stimulus A or stimulus B
                 if data:
-                        stimulus = conversion_key.get(data, "unknown")
+                    stimulus = conversion_key.get(data, "unknown")
 
-                        # If input stimulus is same as previous one: bird still on stimulus perch
-                        if stimulus == previous_stimulus and stimulus in [stimA, stimB]:
-                                currentTime = time.time() # Get current time
-                                
-                                # If bird on stimulus perch longer than threhold: play song
-                                if (currentTime - landTime) > threshold_time and song_exitFlag == True:
-                                    song_exitFlag = False # Update flag to allow song play
+                    # If input stimulus is same as previous one: bird still on stimulus perch
+                    if stimulus == previous_stimulus and stimulus in [stimA, stimB]:
+                            currentTime = time.time() # Get current time
+                            
+                            # If bird on stimulus perch longer than threhold: play song
+                            if (currentTime - landTime) > threshold_time and song_exitFlag == True:
+                                song_exitFlag = False # Update flag to allow song play
 
-                        # If input stimulus is different from previous one: bird moved
-                        elif stimulus != previous_stimulus:
-                            print(stimulus) # Print current state
-                            song_exitFlag = True # Stop song play: if previous stimulus is playing
-                            if mixer.music.get_busy():
-                                mixer.music.fadeout(50)
+                    # If input stimulus is different from previous one: bird moved
+                    elif stimulus != previous_stimulus:
+                        print(stimulus) # Print current state
+                        song_exitFlag = True # Stop song play: if previous stimulus is playing
+                        if mixer.music.get_busy():
+                            mixer.music.fadeout(50)
 
-                            # If bird just landed on stimuls perch: get landing time
-                            if stimulus in [stimA, stimB]:
-                                landTime = time.time() # Get current time
+                        # If bird just landed on stimuls perch: get landing time
+                        if stimulus in [stimA, stimB]:
+                            landTime = time.time() # Get current time
 
-                            # If this is not the first stimulus, update the endTime
-                            if previous_stimulus is not None:
-                                endTime = get_time()  # Get stimulus end time as a string
-                                writer.writerow([previous_stimulus, startTime, endTime, songList])
-                                songList = [] # Empty the songList after logging   
+                        # If this is not the first stimulus, update the endTime
+                        if previous_stimulus is not None:
+                            endTime = get_time()  # Get stimulus end time as a string
+                            writer.writerow([previous_stimulus, startTime, endTime, songList])
+                            songList = [] # Empty the songList after logging   
 
-                            # Update startTime for the new stimulus
-                            startTime = get_time()
+                        # Update startTime for the new stimulus
+                        startTime = get_time()
 
-                        # Update the previous_stimulus
-                        previous_stimulus = stimulus
+                    # Update the previous_stimulus
+                    previous_stimulus = stimulus
 
     except KeyboardInterrupt:
 
