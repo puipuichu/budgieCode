@@ -146,8 +146,8 @@ while True:
     # Split input command using underscore as delimiter
     parsed_input = user_input.split('_')
 
-    # Check if input has expected format (at least three parts separated by underscores)
-    if len(parsed_input) < 3:
+    # Check if input has expected format (three parts separated by underscores)
+    if len(parsed_input) != 3:
         print("Wrong Input Format! Input format: Bird_trialNo_stimulus")
     else:
         # Extract experimental setting (e.g., SAB) and create conversion key from Arduino input (0, 1, 2, or 3) to actual state (free, silent, stimA, stimB)
@@ -237,17 +237,16 @@ with open(logFile, "a", encoding = "UTF8", newline = "") as f:
                 if data:
                         stimulus = conversion_key.get(data, "unknown")
 
-                        # If input stimulus is same as previous one: bird still at same place
-                        if stimulus == previous_stimulus:
+                        # If input stimulus is same as previous one: bird still on stimulus perch
+                        if stimulus == previous_stimulus and stimulus in [stimA, stimB]:
                                 currentTime = time.time() # Get current time
                                 
                                 # If bird on stimulus perch longer than threhold: play song
-                                if stimulus in [stimA, stimB] and (currentTime - landTime) > threshold_time:
-                                    if song_exitFlag == True:
-                                        song_exitFlag = False # Update flag to allow song play
+                                if (currentTime - landTime) > threshold_time and song_exitFlag == True:
+                                    song_exitFlag = False # Update flag to allow song play
 
                         # If input stimulus is different from previous one: bird moved
-                        else:
+                        elif stimulus != previous_stimulus:
                             print(stimulus) # Print current state
                             song_exitFlag = True # Stop song play: if previous stimulus is playing
                             if mixer.music.get_busy():
