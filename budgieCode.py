@@ -49,11 +49,14 @@ threshold_time = c.threshold_time
 # Functions #
 #############
 
-# Create conversion key based on user input: from arudino input (0, 1, 2 or 3) to actual state (free, silent, stimA, stimB)
+# Create conversion key based on user input: connect perch input to actual stimulus
 def create_conversion_key(setting):
+
+    # Find corresponding perch for each stimulus based on setting from user input
     silent_position = setting.find('S')
     stimA_position = setting.find('A')
 
+    # Create conversion key: from arudino input (0, 1, 2 or 3) to actual state (free, silent, stimA, stimB)
     conversion_key = {
         "0": "free",
         "1": 'silent' if silent_position == 0 else (stimA if stimA_position == 0 else stimB),
@@ -63,30 +66,55 @@ def create_conversion_key(setting):
 
     return conversion_key
 
-# Function to play sounds for a given stimulus
-def play_stimulus_loop(stim_files, stim_folder_path, played_songs, stim_song_count):
+# Function to read serial data from arduino: for read_data thread
+def read_data(): 
+    global data
+    while not data_exitFlag:
+        data = ser.readline().decode('utf-8').strip()
+        time.sleep(0.1)
+
+# Function to play stimuli A and B: for play_stimulus thread
+def play_stimulus():
+    global data_exitFlag, stimulus
     global song_exitFlag, songList
 
+    while not data_exitFlag:
+
+        # Check whether input is stimA or stimB, then call play_stimulus_loop function to play stimulus
+        if stimulus == stimA: 
+            play_stimulus_loop(stimA_files, stimA_folderPath, stimA_playedSongs)
+
+        elif stimulus == stimB:
+            play_stimulus_loop(stimB_files, stimB_folderPath, stimB_playedSongs)
+
+# Function to play sounds for a given stimulus
+def play_stimulus_loop(stim_files, stim_folder_path, played_songs):
+    global song_exitFlag, songList
+
+    # Loop through stimulus files
     for song in stim_files:
+
+        # Break out of loop when song_exitFlag
         if song_exitFlag:
             if mixer.music.get_busy():
                 mixer.music.fadeout(50)
             break
+        
+        # Play songs that have not been played yet
+        if song not in played_songs: 
+            print(song) # Print song on screen
+            mixer.music.load(os.path.join(stim_folder_path, song)) # Set song path
+            mixer.music.play() # Play song
+            songList.append(song.strip()) # Add song to songList for logging
+            played_songs.add(song) # Add song to played_songs to keep track 
 
-        if song not in played_songs:
-            print(song)
-            mixer.music.load(os.path.join(stim_folder_path, song))
-            mixer.music.play()
-            songList.append(song.strip())
-            stim_song_count += 1
-            played_songs.add(song)
-
+            # Let current song finish playing before playing next song
             while mixer.music.get_busy():
                 time.sleep(0.1)
 
-    if stim_song_count == stim_no:
+    # Reshuffle songs: when they have all been played          
+    if len(played_songs) == 5: 
         random.shuffle(stim_files)
-        stim_song_count = 0
         played_songs.clear()
 
 # Get time accurate to ms
@@ -147,6 +175,7 @@ logFile = logFolder + user_input + ".txt"
 # Set up serial read from arduino
 baud = 9600  # Arduino Uno runs at 9600 baud
 ser = serial.Serial(arduinoPort, baud)  
+ser.timeout = 0.25 
 ser.reset_input_buffer() # Clear buffer before starting
 print("Connected to Arduino port: " + arduinoPort) # Print message to screen
 
@@ -160,9 +189,7 @@ landTime = None
 endTime = None         
 songList = []          
 stimA_playedSongs = set() # Variables for play_stimulus loop
-stimB_playedSongs = set()  
-stimA_songCount = 0   
-stimB_songCount = 0    
+stimB_playedSongs = set()   
 
 # Get list of song files from folder 
 stimA_files = os.listdir(stimA_folderPath)
@@ -175,28 +202,9 @@ random.shuffle(stimB_files)
 # Initialize mixer to play songs
 mixer.init()
 
-###############################
-# Define and activate threads #
-###############################
-
-# Function to read serial data from arduino
-def read_data(): 
-    global data
-    while not data_exitFlag:
-        data = ser.readline().decode('utf-8').strip()
-        time.sleep(0.1)
-
-# Function to play stimuli A and B
-def play_stimulus():
-    global data_exitFlag, stimulus
-
-    while not data_exitFlag:
-
-        if stimulus == stimA:
-            play_stimulus_loop(stimA_files, stimA_folderPath, stimA_playedSongs, stimA_songCount)
-
-        elif stimulus == stimB:
-            play_stimulus_loop(stimB_files, stimB_folderPath, stimB_playedSongs, stimB_songCount)
+####################
+# Activate threads #
+####################
 
 # Read data from arduino thread
 data_thread = threading.Thread(target = read_data)
@@ -207,6 +215,9 @@ data_thread.start()
 song_thread = threading.Thread(target = play_stimulus)  
 song_thread.daemon = True 
 song_thread.start()
+
+# Allow some time for initialization
+time.sleep(2)
 
 #############
 # Main loop #
@@ -220,8 +231,6 @@ with open(logFile, "a", encoding = "UTF8", newline = "") as f:
 
     # Read input from arduino
     try:
-        ser.timeout = 0.25
-
         while not data_exitFlag:
 
                 # Print input from arduino: silent, stimulus A or stimulus B
@@ -234,7 +243,8 @@ with open(logFile, "a", encoding = "UTF8", newline = "") as f:
                                 
                                 # If bird on stimulus perch longer than threhold: play song
                                 if stimulus in [stimA, stimB] and (currentTime - landTime) > threshold_time:
-                                    song_exitFlag = False # Update flag to allow song play
+                                    if song_exitFlag == True:
+                                        song_exitFlag = False # Update flag to allow song play
 
                         # If input stimulus is different from previous one: bird moved
                         else:
@@ -286,5 +296,6 @@ with open(logFile, "a", encoding = "UTF8", newline = "") as f:
         ser.close()  
         time.sleep(0.1)
 
+# Close mixer and exit program
 mixer.quit()
 sys.exit()
